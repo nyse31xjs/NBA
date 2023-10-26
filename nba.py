@@ -1,7 +1,11 @@
 import pandas as pd
 import seaborn as sns
 import streamlit as st
+import numpy as np
 import plotly.express as px
+import joblib
+from sklearn.preprocessing import StandardScaler
+
 df = pd.read_csv('nba-players.csv')
 
 df = df.drop('Unnamed: 0', axis = 1)
@@ -44,7 +48,9 @@ elif page == pages[1]:
         st.dataframe(df.duplicated().sum())
 
     st.write("## Analyse de données")
+    st.write("Nous avons retiré les doublons.")
 
+    st.write("## Matrice de visualisation")
     variables = st.multiselect('Quelle variable voulez-vous visualiser ?', data.columns.tolist(), ['min', 'pts'])
     st.pyplot(sns.pairplot(data[variables]), hue = "target_5yrs")
 
@@ -59,34 +65,49 @@ elif page == pages[1]:
 
 elif page == pages[2]:
     st.write("# Machine learning")
+    st.image("ml.jpg")
     st.write("Maintenant que nous avons analysé les données de manière descriptives. Nous développons"
-             " un modèle de machine learning nommé K Neirest Neighbors. Notre objectif ? Prédire si un joueur"
-             " peut prétendre à une carrière d'au moins 5 ans en NBA étant donné ses caractéristiques personnelles.")
-    st.write("### Choix de la distance")
-    distance = st.selectbox('Quelle distance souhaitez-vous utiliser ?', ('Manhattan', 'Euclidienne', 'Minkowski'))
-    st.write("La distance choisie peut avoir un grand impact sur l'efficacité du modèle, vous "
-             " pouvez modidier le type de distance pour voir les effets sur la performance du modèle.")
-    st.write("### Performance du modèle")
-    st.write("Métrique d'exactitude :")
+             " un modèle de machine learning qui est une regression logistique. Notre objectif ? Prédire si un joueur"
+             " peut prétendre à une carrière d'au moins 5 ans en NBA étant donné ses caractéristiques de jeu.")
+    st.write("### Procédure")
+    st.write("Pour développer ce modèle, nous avons passer par plusieurs étapes. Nous avons du régler"
+             " le problème du jeu de données déséquilibré : effectivement dans notre dataset original"
+             " les joueurs avec une carrière de plus de 5 ans étaient beaucoup plus nombreux, alors pour ne pas biaiser"
+             " l'apprentissage du modèle, nous avons réduit le nombre de ligne en créant un nouveau dataset équilibré"
+             " (Undersamping).")
+    st.write("Nous avons standardisé les données pour ne pas favoriser Ensuite nous avons procédé à la sélection des variables importantes pour le modèle, nous avons "
+             " utilisé la méthode RFE (recursive feature elimination), le modèle est estimé avec toutes les variables, "
+             " puis tour à tour, la variable ayant le moins d'impact sur le modèle est eliminée. Nous avons décidé arbitrairement de garder les "
+             " 6 variables les plus importantes. Finalement nous en retenons 5 car deux des 6 variables retenues par RFE sont linéairement "
+             " positivement corrélées.")
 
     st.write("### Prédiction")
 
+    st.write("Rentrez les caractéristiques du joueur.")
 
-    stl = st.slider('Nombre moyen de ballons piqués ? (par match)', 0.0, 3.0, 1.0, step = 0.2)
-    st.write("Valeur choisie :", stl)
+    gp = st.slider('Nombre de matchs joués ?', 5, 100, 30, step = 1)
+    st.write("Valeur choisie :", gp)
 
-    min = st.slider('Temps de jeu moyen ? (en minutes)', 0, 48, 10)
-    st.write("Valeur choisie :", min)
+    fga = st.slider('Nombre moyen de tentatives par match ?', 0.0, 25.0, 0.1)
+    st.write("Valeur choisie :", fga)
 
-    pts = st.slider('Nombre moyen de points marqués ? (par match)', 0.0, 30.0, 10.0, step = 0.2)
-    st.write("Valeur choisie :", pts)
+    fg = st.slider('Pourcentage moyen de paniers réalisés par match ?', 0, 100, 10, step = 1)
+    st.write("Valeur choisie :", fg)
 
-    ast = st.slider('Nombre moyen de passes décisives ? (par match)', 0.0, 11.0, 6.0, step = 0.2)
-    st.write("Valeur choisie :", ast)
+    threepa = st.slider('Nombre moyen de tentatives de panier à trois points par match ?', 0.0, 10.0, 6.0, step = 0.2)
+    st.write("Valeur choisie :", threepa)
 
-    three = st.slider('Nombre moyen de 3 point réussies? (par match)', 0.0, 2.5, 1.0, step = 0.1)
-    st.write("Valeur choisie :", three)
+    oreb = st.slider('Nombre moyen de rebonds offensifs par match ?', 0.0, 6.0, 1.0, step = 0.1)
+    st.write("Valeur choisie :", oreb)
+
+    data = np.array([(gp-58.6)/17.6, (fga-5.61)/3.4, (fg-43.8)/6.25, (threepa-0.77)/1.03, (oreb-0.95)/0.74])
 
     if st.button('Prédire'):
-        st.write('La probabilité que le joueur fasse une carrière de plus de 5 ans est :')
+        #load le modele
+        loaded_model = joblib.load('logistic.joblib')
 
+        st.write('Prédiction du modèle :')
+        if loaded_model.predict(data.reshape(1, -1)) == 0 :
+            st.write('Le joueur ne fera probablement pas une carrière d\'au moins 5ans')
+        elif loaded_model.predict(data.reshape(1, -1)) == 1 :
+            st.write('Le joueur fera probablement une carrière d\'au moins 5ans')
